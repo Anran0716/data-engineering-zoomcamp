@@ -23,6 +23,7 @@ Create a (regular/materialized) table in BQ using the Yellow Taxi Trip Records (
 
 ## Question 1:
 Question 1: What is count of records for the 2024 Yellow Taxi Data?
+<<<<<<< HEAD
 - 20,332,093
 
 '''sql
@@ -30,6 +31,12 @@ Question 1: What is count of records for the 2024 Yellow Taxi Data?
 SELECT count(*) FROM `kestra-sandbox-451604.nyc_taxi.yellow_tripdata_2024`
 
 '''
+=======
+- 65,623
+- 840,402
+- 20,332,093
+- 85,431,289
+>>>>>>> 5ad8dbb1e0425d14fce5e42270124d76d736d6f4
 
 
 ## Question 2:
