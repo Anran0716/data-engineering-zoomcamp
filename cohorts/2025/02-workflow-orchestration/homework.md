@@ -37,10 +37,9 @@ Complete the Quiz shown below. It’s a set of 6 multiple-choice questions to te
 
 
 3) How many rows are there for the `Yellow` Taxi data for all CSV files in the year 2020?
-- 13,537.299
+
 - 24,648,499
-- 18,324,219
-- 29,430,127
+
 
 4) How many rows are there for the `Green` Taxi data for all CSV files in the year 2020?
 
