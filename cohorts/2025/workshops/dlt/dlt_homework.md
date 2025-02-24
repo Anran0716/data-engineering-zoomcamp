@@ -41,6 +41,8 @@ print("dlt version:", dlt.__version__)
 
 Provide the **version** you see in the output.
 
+- dlt 1.7.0
+
 ## **Question 2: Define & Run the Pipeline (NYC Taxi API)**
 
 Use dlt to extract all pages of data from the API.
@@ -96,10 +98,8 @@ conn.sql("DESCRIBE").df()
 
 How many tables were created?
 
-* 2
 * 4
-* 6
-* 8
+
 
 ## **Question 3: Explore the loaded data**
 
@@ -112,9 +112,6 @@ df
 
 What is the total number of records extracted?
 
-* 2500
-* 5000
-* 7500
 * 10000
 
 ## **Question 4: Trip Duration Analysis**
@@ -139,9 +136,6 @@ with pipeline.sql_client() as client:
 What is the average trip duration?
 
 * 12.3049
-* 22.3049
-* 32.3049
-* 42.3049
 
 ## **Submitting the solutions**
 
