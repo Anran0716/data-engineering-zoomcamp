@@ -44,11 +44,9 @@ select *
 from {{ source('raw_nyc_tripdata', 'ext_green_taxi' ) }}
 ```
 
-- `select * from dtc_zoomcamp_2025.raw_nyc_tripdata.ext_green_taxi`
-- `select * from dtc_zoomcamp_2025.my_nyc_tripdata.ext_green_taxi`
+
 - `select * from myproject.raw_nyc_tripdata.ext_green_taxi`
-- `select * from myproject.my_nyc_tripdata.ext_green_taxi`
-- `select * from dtc_zoomcamp_2025.raw_nyc_tripdata.green_taxi`
+
 
 
 ### Question 2: dbt Variables & Dynamic Models
@@ -66,11 +64,7 @@ where pickup_datetime >= CURRENT_DATE - INTERVAL '30' DAY
 
 What would you change to accomplish that in a such way that command line arguments takes precedence over ENV_VARs, which takes precedence over DEFAULT value?
 
-- Add `ORDER BY pickup_datetime DESC` and `LIMIT {{ var("days_back", 30) }}`
-- Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ var("days_back", 30) }}' DAY`
-- Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ env_var("DAYS_BACK", "30") }}' DAY`
 - Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ var("days_back", env_var("DAYS_BACK", "30")) }}' DAY`
-- Update the WHERE clause to `pickup_datetime >= CURRENT_DATE - INTERVAL '{{ env_var("DAYS_BACK", var("days_back", "30")) }}' DAY`
 
 
 ### Question 3: dbt Data Lineage and Execution
@@ -81,10 +75,6 @@ Considering the data lineage below **and** that taxi_zone_lookup is the **only**
 
 Select the option that does **NOT** apply for materializing `fct_taxi_monthly_zone_revenue`:
 
-- `dbt run`
-- `dbt run --select +models/core/dim_taxi_trips.sql+ --target prod`
-- `dbt run --select +models/core/fct_taxi_monthly_zone_revenue.sql`
-- `dbt run --select +models/core/`
 - `dbt run --select models/staging/+`
 
 
@@ -120,7 +110,6 @@ And use on your staging, dim_ and fact_ models as:
 
 That all being said, regarding macro above, **select all statements that are true to the models using it**:
 - Setting a value for  `DBT_BIGQUERY_TARGET_DATASET` env var is mandatory, or it'll fail to compile
-- Setting a value for `DBT_BIGQUERY_STAGING_DATASET` env var is mandatory, or it'll fail to compile
 - When using `core`, it materializes in the dataset defined in `DBT_BIGQUERY_TARGET_DATASET`
 - When using `stg`, it materializes in the dataset defined in `DBT_BIGQUERY_STAGING_DATASET`, or defaults to `DBT_BIGQUERY_TARGET_DATASET`
 - When using `staging`, it materializes in the dataset defined in `DBT_BIGQUERY_STAGING_DATASET`, or defaults to `DBT_BIGQUERY_TARGET_DATASET`
@@ -146,11 +135,48 @@ You might want to add some new dimensions `year` (e.g.: 2019, 2020), `quarter` (
 
 Considering the YoY Growth in 2020, which were the yearly quarters with the best (or less worse) and worst results for green, and yellow
 
-- green: {best: 2020/Q2, worst: 2020/Q1}, yellow: {best: 2020/Q2, worst: 2020/Q1}
-- green: {best: 2020/Q2, worst: 2020/Q1}, yellow: {best: 2020/Q3, worst: 2020/Q4}
-- green: {best: 2020/Q1, worst: 2020/Q2}, yellow: {best: 2020/Q2, worst: 2020/Q1}
 - green: {best: 2020/Q1, worst: 2020/Q2}, yellow: {best: 2020/Q1, worst: 2020/Q2}
-- green: {best: 2020/Q1, worst: 2020/Q2}, yellow: {best: 2020/Q3, worst: 2020/Q4}
+
+```sql
+
+ {{
+    config(
+        materialized='table'
+    )
+}}
+
+WITH trips AS (
+    SELECT 
+        service_type, -- Green or Yellow Taxi
+        EXTRACT(YEAR FROM pickup_datetime) AS year,
+        EXTRACT(QUARTER FROM pickup_datetime) AS quarter,
+        CONCAT(EXTRACT(YEAR FROM pickup_datetime), '/Q', EXTRACT(QUARTER FROM pickup_datetime)) AS year_quarter,
+        SUM(total_amount) AS total_revenue
+    FROM {{ ref('fact_trips') }}
+    GROUP BY 1, 2, 3, 4
+),
+
+yoy_growth AS (
+    SELECT 
+        t1.service_type,
+        t1.year,
+        t1.quarter,
+        t1.year_quarter,
+        t1.total_revenue,
+        t2.total_revenue AS prev_year_revenue,
+        SAFE_DIVIDE(t1.total_revenue - t2.total_revenue, t2.total_revenue) * 100 AS yoy_growth
+    FROM trips t1
+    LEFT JOIN trips t2 
+        ON t1.service_type = t2.service_type
+        AND t1.year = t2.year + 1
+        AND t1.quarter = t2.quarter
+)
+
+SELECT * FROM yoy_growth
+WHERE year=2020
+ORDER BY service_type, yoy_growth DESC
+    
+```
 
 
 ### Question 6: P97/P95/P90 Taxi Monthly Fare
@@ -161,12 +187,41 @@ Considering the YoY Growth in 2020, which were the yearly quarters with the best
 
 Now, what are the values of `p97`, `p95`, `p90` for Green Taxi and Yellow Taxi, in April 2020?
 
-- green: {p97: 55.0, p95: 45.0, p90: 26.5}, yellow: {p97: 52.0, p95: 37.0, p90: 25.5}
 - green: {p97: 55.0, p95: 45.0, p90: 26.5}, yellow: {p97: 31.5, p95: 25.5, p90: 19.0}
-- green: {p97: 40.0, p95: 33.0, p90: 24.5}, yellow: {p97: 52.0, p95: 37.0, p90: 25.5}
-- green: {p97: 40.0, p95: 33.0, p90: 24.5}, yellow: {p97: 31.5, p95: 25.5, p90: 19.0}
-- green: {p97: 55.0, p95: 45.0, p90: 26.5}, yellow: {p97: 52.0, p95: 25.5, p90: 19.0}
 
+
+```sql
+
+WITH filtered_trips AS (
+    SELECT 
+        service_type,  -- Green Taxi, Yellow Taxi, etc.
+        EXTRACT(YEAR FROM pickup_datetime) AS year,
+        EXTRACT(MONTH FROM pickup_datetime) AS month,
+        fare_amount
+    FROM  `kestra-sandbox-451604.dbt_azheng.fact_trips` 
+    WHERE 
+        fare_amount > 0 
+        AND trip_distance > 0 
+        AND lower(payment_type_description) in ('cash', 'credit card')
+),
+
+percentile_values AS (
+    SELECT 
+        service_type,
+        year,
+        month,
+        APPROX_QUANTILES(fare_amount, 100)[97] AS p97_fare,
+        APPROX_QUANTILES(fare_amount, 100)[95] AS p95_fare,
+        APPROX_QUANTILES(fare_amount, 100)[90] AS p90_fare
+    FROM filtered_trips
+    GROUP BY service_type, year, month
+)
+
+SELECT * FROM percentile_values
+WHERE year=2020 AND month=4
+ORDER BY service_type, year, month;
+    
+```
 
 ### Question 7: Top #Nth longest P90 travel time Location for FHV
 
@@ -183,10 +238,26 @@ Now...
 For the Trips that **respectively** started from `Newark Airport`, `SoHo`, and `Yorkville East`, in November 2019, what are **dropoff_zones** with the 2nd longest p90 trip_duration ?
 
 - LaGuardia Airport, Chinatown, Garment District
-- LaGuardia Airport, Park Slope, Clinton East
-- LaGuardia Airport, Saint Albans, Howard Beach
-- LaGuardia Airport, Rosedale, Bath Beach
-- LaGuardia Airport, Yorkville East, Greenpoint
+
+'''sql
+
+WITH ranked_trips AS (
+    SELECT 
+        pickup_zone, 
+        dropoff_zone,
+        p90_trip_duration,
+        RANK() OVER (PARTITION BY pickup_zone ORDER BY p90_trip_duration DESC) AS rank
+    FROM `kestra-sandbox-451604.dbt_azheng.fct_fhv_monthly_zone_traveltime_p90`
+    WHERE year = 2019 AND month = 11
+    AND pickup_zone IN ('Newark Airport', 'SoHo', 'Yorkville East')
+)
+
+SELECT pickup_zone, dropoff_zone, p90_trip_duration
+FROM ranked_trips
+WHERE rank = 2
+ORDER BY pickup_zone, p90_trip_duration DESC;
+
+'''
 
 
 ## Submitting the solutions
