@@ -239,7 +239,7 @@ For the Trips that **respectively** started from `Newark Airport`, `SoHo`, and `
 
 - LaGuardia Airport, Chinatown, Garment District
 
-'''sql
+```sql
 
 WITH ranked_trips AS (
     SELECT 
@@ -257,7 +257,7 @@ FROM ranked_trips
 WHERE rank = 2
 ORDER BY pickup_zone, p90_trip_duration DESC;
 
-'''
+```
 
 
 ## Submitting the solutions
