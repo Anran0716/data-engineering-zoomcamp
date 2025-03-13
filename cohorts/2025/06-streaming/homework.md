@@ -72,6 +72,13 @@ Find out what you need to execute based on the `help` output.
 
 What's the version, based on the output of the command you executed? (copy the entire version)
 
+```
+
+Version: v24.2.18
+Go Version: go1.23.1
+
+```
+
 
 ## Question 2. Creating a topic
 
@@ -83,6 +90,11 @@ redpandas.
 Read the output of `help` and based on it, create a topic with name `green-trips` 
 
 What's the output of the command for creating a topic? Include the entire output in your answer.
+
+```
+TOPIC        STATUS
+green-trips  OK
+```
 
 
 ## Question 3. Connecting to the Kafka server
@@ -122,6 +134,10 @@ producer.bootstrap_connected()
 
 Provided that you can connect to the server, what's the output
 of the last command?
+
+```
+True
+```
 
 ## Question 4: Sending the Trip Data
 
@@ -167,6 +183,55 @@ took = t1 - t0
 
 How much time did it take to send the entire dataset and flush? 
 
+```
+Time taken to send and flush data: 115.72 seconds 
+```
+
+'''python
+from kafka import KafkaProducer
+import pandas as pd
+import json
+from time import time
+
+# Kafka Configuration
+KAFKA_BROKER = 'localhost:9092'  # Change this if needed
+TOPIC_NAME = 'green-trips'
+
+# Initialize Kafka Producer
+producer = KafkaProducer(
+    bootstrap_servers=KAFKA_BROKER,
+    value_serializer=lambda v: json.dumps(v).encode('utf-8')  # Convert message to JSON
+)
+
+# Read the compressed CSV file
+file_path = 'green_tripdata_2019-10.csv.gz'  # Change this to the actual file path
+df = pd.read_csv(file_path, compression='gzip', usecols=[
+    'lpep_pickup_datetime',
+    'lpep_dropoff_datetime',
+    'PULocationID',
+    'DOLocationID',
+    'passenger_count',
+    'trip_distance',
+    'tip_amount'
+])
+
+# Measure execution time
+t0 = time()
+
+# Send each row as a message to Kafka
+for _, row in df.iterrows():
+    message = row.to_dict()
+    producer.send(TOPIC_NAME, value=message)
+
+# Flush data
+producer.flush()
+
+t1 = time()
+took = t1 - t0
+
+print(f"Time taken to send and flush data: {took:.2f} seconds")
+'''
+
 
 ## Question 5: Build a Sessionization Window (2 points)
 
@@ -178,6 +243,38 @@ Now we have the data in the Kafka stream. It's time to process it.
 * Use `lpep_dropoff_datetime` time as your watermark with a 5 second tolerance
 * Which pickup and drop off locations have the longest unbroken streak of taxi trips?
 
+```
+Longest unbroken streak: {'PULocationID': 82, 'DOLocationID': 138, 'streak_length': 129}
+```
+
+'''python
+
+import pandas as pd
+
+# Convert datetime columns from string to datetime format
+df['lpep_pickup_datetime'] = pd.to_datetime(df['lpep_pickup_datetime'])
+df['lpep_dropoff_datetime'] = pd.to_datetime(df['lpep_dropoff_datetime'])
+
+# Sort by dropoff time
+df = df.sort_values(by=['lpep_dropoff_datetime', 'lpep_pickup_datetime'])
+
+# Compute time difference between consecutive trips for the same (PULocationID, DOLocationID)
+df['prev_dropoff'] = df.groupby(['PULocationID', 'DOLocationID'])['lpep_dropoff_datetime'].shift(1)
+df['time_diff'] = (df['lpep_pickup_datetime'] - df['prev_dropoff']).dt.total_seconds() / 60  # Convert to minutes
+
+# Identify new streaks (reset when gap > 5 minutes)
+df['new_streak'] = (df['time_diff'] > 5) | df['time_diff'].isna()
+df['streak_id'] = df.groupby(['PULocationID', 'DOLocationID'])['new_streak'].cumsum()
+
+# Count the longest streak per (PULocationID, DOLocationID)
+streak_counts = df.groupby(['PULocationID', 'DOLocationID', 'streak_id']).size().reset_index(name='streak_length')
+
+# Get the location pair with the longest streak
+longest_streak = streak_counts.loc[streak_counts['streak_length'].idxmax(), ['PULocationID', 'DOLocationID', 'streak_length']]
+
+print(f"Longest unbroken streak: {longest_streak.to_dict()}")
+
+'''
 
 ## Submitting the solutions
 
