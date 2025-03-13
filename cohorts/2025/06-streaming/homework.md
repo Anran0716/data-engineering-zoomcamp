@@ -187,7 +187,7 @@ How much time did it take to send the entire dataset and flush?
 Time taken to send and flush data: 115.72 seconds 
 ```
 
-'''python
+```python
 from kafka import KafkaProducer
 import pandas as pd
 import json
@@ -230,7 +230,7 @@ t1 = time()
 took = t1 - t0
 
 print(f"Time taken to send and flush data: {took:.2f} seconds")
-'''
+```
 
 
 ## Question 5: Build a Sessionization Window (2 points)
@@ -247,7 +247,7 @@ Now we have the data in the Kafka stream. It's time to process it.
 Longest unbroken streak: {'PULocationID': 82, 'DOLocationID': 138, 'streak_length': 129}
 ```
 
-'''python
+```python
 
 import pandas as pd
 
@@ -274,7 +274,7 @@ longest_streak = streak_counts.loc[streak_counts['streak_length'].idxmax(), ['PU
 
 print(f"Longest unbroken streak: {longest_streak.to_dict()}")
 
-'''
+```
 
 ## Submitting the solutions
 
